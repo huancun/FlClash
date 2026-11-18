@@ -58,6 +58,13 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
+      - name: Resolve iOS-compatible libc
+        working-directory: plugins/rust_api/rust
+        run: |
+          set -euo pipefail
+          # libc 0.2.190 gates the dyld APIs used by backtrace 0.3.76 to macOS.
+          cargo update -p libc --precise 0.2.189
+
       - name: Build unsigned iOS app
         id: build
         run: |
