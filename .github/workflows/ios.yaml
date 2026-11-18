@@ -53,8 +53,22 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Build unsigned iOS package
-        run: flutter build ipa --release --no-codesign
+      - name: Build unsigned iOS app
+        run: flutter build ios --release --no-codesign
+
+      - name: Package unsigned iOS IPA
+        run: |
+          set -euo pipefail
+          app_path="$(find build/ios -type d -path '*/Runner.app' -print -quit)"
+          ipa_path='build/ios/ipa/FlClash-unsigned.ipa'
+          test -d "$app_path"
+          rm -rf build/ios/ipa
+          mkdir -p build/ios/ipa/Payload
+          cp -R "$app_path" build/ios/ipa/Payload/Runner.app
+          (
+            cd build/ios/ipa
+            zip -qry "$(basename "$ipa_path")" Payload
+          )
 
       - name: Verify Rust framework is embedded
         run: |
