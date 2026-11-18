@@ -83,10 +83,10 @@ jobs:
           destination="$app_path/Frameworks/rust_api.framework"
           test -f "$rust_framework_path/rust_api"
           rm -rf "$destination"
-          mkdir -p "$destination"
-          cp -R "$rust_framework_path/." "$destination/"
+          ditto "$rust_framework_path" "$destination"
           cp -f "$rust_framework_binary" "$destination/rust_api"
-          test -f "$app_path/Frameworks/rust_api.framework/rust_api"
+          find "$destination" -maxdepth 2 -print
+          test -e "$app_path/Frameworks/rust_api.framework/rust_api"
 
       - name: Upload unsigned iOS app
         uses: actions/upload-artifact@v4
