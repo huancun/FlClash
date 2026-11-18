@@ -74,6 +74,12 @@ jobs:
           set -euo pipefail
           app_path="$(find build/ios -type d -path '*/Runner.app' -print -quit 2>/dev/null || true)"
           test -d "$app_path"
+          rust_framework_binary="$(find build/native_assets/ios -type f -path '*/rust_api.framework/rust_api' -print -quit 2>/dev/null || true)"
+          test -n "$rust_framework_binary"
+          rust_framework_path="$(dirname "$rust_framework_binary")"
+          mkdir -p "$app_path/Frameworks"
+          rm -rf "$app_path/Frameworks/rust_api.framework"
+          cp -R "$rust_framework_path" "$app_path/Frameworks/rust_api.framework"
           test -f "$app_path/Frameworks/rust_api.framework/rust_api"
 
       - name: Upload unsigned iOS app
