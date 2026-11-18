@@ -169,6 +169,51 @@ jobs:
       - name: Build debug bundle
         run: flutter build ${{ matrix.platform }} --debug
 
+  ios:
+    name: iOS compile
+    if: *checks
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Xcode
+        run: |
+          sudo xcode-select -s /Applications/Xcode_26.3.app || sudo xcode-select -s /Applications/Xcode_26.2.app
+          xcodebuild -version
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: ${{ env.BRANCH_CACHE }}
+
+      - name: Generate the iOS runner
+        run: flutter create --platforms=ios --project-name fl_clash .
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      # iOS Core/VPN assets need a Network Extension implementation and Apple
+      # signing. Keep this job as a Flutter/Xcode compile check until those
+      # targets are added.
+      - name: Disable non-iOS build hooks
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('pubspec.yaml')
+          text = path.read_text()
+          text = text.replace('      build_assets: true', '      build_assets: false')
+          path.write_text(text)
+          PY
+
+      - name: Compile unsigned iOS app
+        run: flutter build ios --debug --no-codesign
+
   go:
     name: Go core
     if: *checks
