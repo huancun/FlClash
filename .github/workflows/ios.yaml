@@ -33,16 +33,20 @@ jobs:
           cache: true
 
       - name: Generate the iOS runner
-        run: flutter create --platforms=ios --project-name fl_clash .
+        run: flutter create --platforms=ios --org com.follow --project-name fl_clash .
 
-      - name: Disable non-iOS build hooks
+      - name: Disable Go/Core build hook
         run: |
           python3 - <<'PY'
           from pathlib import Path
 
           path = Path('pubspec.yaml')
           text = path.read_text()
-          text = text.replace('      build_assets: true', '      build_assets: false')
+          text = text.replace(
+              '    setup:\n      build_assets: true',
+              '    setup:\n      build_assets: false',
+              1,
+          )
           path.write_text(text)
           PY
 
@@ -52,11 +56,15 @@ jobs:
       - name: Build unsigned iOS package
         run: flutter build ipa --release --no-codesign
 
+      - name: Verify Rust framework is embedded
+        run: |
+          ipa_path="$(find build/ios/ipa -maxdepth 1 -name '*.ipa' -print -quit)"
+          test -n "$ipa_path"
+          unzip -l "$ipa_path" | grep -Fq 'Payload/Runner.app/Frameworks/rust_api.framework/rust_api'
+
       - name: Upload unsigned iOS package
         uses: actions/upload-artifact@v4
         with:
           name: ios-unsigned
           if-no-files-found: error
-          path: |
-            build/ios/ipa/*.ipa
-            build/ios/archive/*.xcarchive
+          path: build/ios/ipa/*.ipa
