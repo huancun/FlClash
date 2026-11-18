@@ -45,6 +45,8 @@ jobs:
 
           path = Path('pubspec.yaml')
           text = path.read_text()
+          assert '    setup:\n      build_assets: true' in text, 'setup hook configuration not found'
+          assert '    rust_api:\n      build_assets: true' in text, 'Rust build hook must remain enabled'
           text = text.replace(
               '    setup:\n      build_assets: true',
               '    setup:\n      build_assets: false',
@@ -57,39 +59,60 @@ jobs:
         run: flutter pub get
 
       - name: Build unsigned iOS app
+        id: build
         run: |
           set -euo pipefail
-          rm -rf build/ios
-          set +e
-          flutter build ios --release --no-codesign
-          flutter_status=$?
-          set -e
-          app_path="$(find build/ios -type d -path '*/Runner.app' -print -quit 2>/dev/null || true)"
-          if test ! -d "$app_path"; then
-            exit "$flutter_status"
-          fi
-          if test "$flutter_status" -ne 0; then
-            echo 'Flutter reported an unsigned-device export warning after producing Runner.app; continuing.'
-          fi
+          mkdir -p build/diagnostics
+          flutter build ios --release --no-codesign --verbose 2>&1 | tee build/diagnostics/ios-build.log
 
       - name: Verify unsigned iOS app
         run: |
           set -euo pipefail
+          trap 'echo "::error::App verification failed at line $LINENO: $BASH_COMMAND"' ERR
           app_path="$(find build/ios -type d -path '*/Runner.app' -print -quit 2>/dev/null || true)"
+          printf 'Selected app: %s\n' "$app_path"
           test -d "$app_path"
-          rust_framework_binary="$(find build/native_assets/ios -type f -path '*/rust_api.framework/rust_api' -print -quit 2>/dev/null || true)"
-          test -n "$rust_framework_binary"
-          rust_framework_path="$(dirname "$rust_framework_binary")"
-          destination="$app_path/Frameworks/rust_api.framework"
-          test -f "$rust_framework_path/rust_api"
-          mkdir -p "$app_path/Frameworks"
-          rm -rf "$destination"
-          mkdir -p "$destination"
-          ditto "$rust_framework_path/." "$destination/"
-          install -m 755 "$rust_framework_binary" "$destination/rust_api"
-          find "$destination" -maxdepth 2 -print
-          ls -l "$destination/rust_api"
-          test -f "$destination/rust_api"
+          test -s "$app_path/Runner"
+          test -s "$app_path/Frameworks/rust_api.framework/rust_api"
+
+      - name: Collect build diagnostics
+        if: ${{ always() && steps.build.outcome != 'skipped' }}
+        run: |
+          mkdir -p build/diagnostics
+          python3 - <<'PY' > build/diagnostics/artifacts.txt
+          from pathlib import Path
+          import shutil
+
+          for root in ('build/ios', 'build/native_assets/ios', '.dart_tool/hooks_runner'):
+              directory = Path(root)
+              print(f'\n{root}: exists={directory.exists()}')
+              if not directory.exists():
+                  continue
+              for path in sorted(directory.rglob('*')):
+                  if path.is_dir() or path.suffix in ('.log', '.json') or 'rust_api' in path.name or path.name == 'Runner':
+                      print(path)
+                  if path.name == 'NativeAssetsManifest.json':
+                      print(path.read_text())
+          for root in ('.dart_tool/hooks_runner', '.dart_tool/hooks'):
+              directory = Path(root)
+              if not directory.exists():
+                  continue
+              for path in directory.rglob('*'):
+                  if path.is_file() and (path.suffix == '.log' or path.name in ('stdout.txt', 'stderr.txt')):
+                      destination = Path('build/diagnostics/hooks') / path.relative_to('.dart_tool')
+                      destination.parent.mkdir(parents=True, exist_ok=True)
+                      shutil.copy2(path, destination)
+          PY
+          cat build/diagnostics/artifacts.txt
+
+      - name: Upload build diagnostics
+        if: ${{ always() && steps.build.outcome != 'skipped' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-build-diagnostics
+          path: build/diagnostics/
+          retention-days: 7
+          if-no-files-found: warn
 
       - name: Upload unsigned iOS app
         uses: actions/upload-artifact@v4
