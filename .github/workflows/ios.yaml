@@ -82,11 +82,14 @@ jobs:
           rust_framework_path="$(dirname "$rust_framework_binary")"
           destination="$app_path/Frameworks/rust_api.framework"
           test -f "$rust_framework_path/rust_api"
+          mkdir -p "$app_path/Frameworks"
           rm -rf "$destination"
-          ditto "$rust_framework_path" "$destination"
-          cp -f "$rust_framework_binary" "$destination/rust_api"
+          mkdir -p "$destination"
+          ditto "$rust_framework_path/." "$destination/"
+          install -m 755 "$rust_framework_binary" "$destination/rust_api"
           find "$destination" -maxdepth 2 -print
-          test -e "$app_path/Frameworks/rust_api.framework/rust_api"
+          ls -l "$destination/rust_api"
+          test -f "$destination/rust_api"
 
       - name: Upload unsigned iOS app
         uses: actions/upload-artifact@v4
