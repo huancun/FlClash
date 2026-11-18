@@ -1938,10 +1938,11 @@ that takes a `StreamSink` must not return an error: the generated Dart code drop
 surfaces as an unhandled async error instead of reaching the caller. That is why binding is its own call and
 everything after it is reported as an event.
 
-What a platform does not use, it does not compile. `interprocess`, `tokio` and `global-hotkey` are declared under
-`cfg(not(target_os = "android"))`, and `ipc/mod.rs` and `hotkey/mod.rs` swap in their `unsupported.rs` there, because
-Android loads the Core in-process and has no global shortcuts. Adding a capability follows the same shape: implement it in its own module, gate the
-dependency by target, and keep the `api/` entry point unconditional so one set of bindings still serves every platform.
+What a platform does not use, it does not compile. `interprocess`, `tokio` and `global-hotkey` are declared only for
+desktop targets, and `ipc/mod.rs` and `hotkey/mod.rs` swap in their `unsupported.rs` implementations on mobile,
+because mobile builds do not expose desktop IPC or global shortcuts. Adding a capability follows the same shape:
+implement it in its own module, gate the dependency by target, and keep the `api/` entry point unconditional so one
+set of bindings still serves every platform.
 
 `RustLib.init()` runs on every platform in `main`, because the script engine and the editor are shared; the editor
 shows its unavailable state when `RustLib` is not initialized rather than loading the library itself.
